@@ -12,6 +12,8 @@ __pycache__/
 venv/
 .venv/
 env/
+.jupyter/
+.ipython/
 
 # System / OS
 .DS_Store
