@@ -175,7 +175,11 @@ Raw Sources (S1, S2, S3)
      - *Address Transpositions*: City/State preceding street name (`Des Plaines, IL, 9308 Home Court` vs `9308 Home Ct, Des Plaines, IL`).
      - *Numeric Variations*: Leading zeros (`004303 ELKINS AVE` vs `4303 Elkins Avenue`).
      - *Non-Latin Script*: Hindi Devanagari names in India records (`राम मार्केटिंग प्राइवेट लिमिटेड`).
-- **Current Status**: EDA notebook generated, verified, and saved with complete output. Next milestone: Baseline country-partitioned blocking and string similarity matcher (EXP-001).
+  6. **Directory Consolidation & Cleanup**:
+     - Removed redundant archive folders (`6ab10eb3b23ba_student_resource/` and `__MACOSX/`).
+     - Consolidated all real TSV dataset files directly into a single unified [`dataset/train/`](dataset/train) and [`dataset/test/`](dataset/test) structure.
+     - Cleaned up temporary generator scripts and caches; workspace is lean and canonical.
+- **Current Status**: Workspace cleaned and consolidated. EDA notebook generated, verified, and saved with complete output. Next milestone: Baseline country-partitioned blocking and string similarity matcher (EXP-001).
 
 ---
 *(Additional entries will be logged continuously as experiments are executed and progress is made)*
