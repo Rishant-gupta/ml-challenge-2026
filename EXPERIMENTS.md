@@ -93,7 +93,8 @@ $$F_{0.5}(i) = \begin{cases}
 | Run ID | Date | Description / Hypothesis | Blocking Recall | Candidate Count / S1 | Val Precision | Val Recall | Val Macro $F_{0.5}$ | Status | Decision |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **EXP-000** | 2026-09-25 | Environment setup, evaluation suite, and full exploratory data analysis (EDA) notebook | N/A | N/A | N/A | N/A | N/A | Completed | Baseline Ready |
-| **EXP-001** | *Planned* | Country-Partitioned Inverted Index (Token + 3-gram) + Heuristic RapidFuzz Scorer | TBD | TBD | TBD | TBD | TBD | Ready | Pending Run |
+| **EXP-001** | 2026-09-25 | Country-Partitioned Multi-Key Inverted Index + Heuristic RapidFuzz Scorer ($\tau = 82.0$) | 91.60% | 24.54 | 0.9212 | 0.8603 | **0.8938** | Completed | Strong Baseline Established |
+| **EXP-002** | *Planned* | Domain/URL Normalization + Devanagari Transliteration + Strip-Mall FP Suppression | TBD | TBD | TBD | TBD | TBD | Ready | Pending Run |
 
 ---
 
@@ -106,5 +107,7 @@ $$F_{0.5}(i) = \begin{cases}
 5. [x] Set up Python virtual environment (`venv/`) with JupyterLab and ML libraries.
 6. [x] Build interactive EDA notebook ([`notebooks/01_exploratory_data_analysis.ipynb`](notebooks/01_exploratory_data_analysis.ipynb)) and launcher script ([`start_jupyter.sh`](start_jupyter.sh)).
 7. [x] Perform Exploratory Data Analysis (EDA) on training data: singletons (~5.6%), country invariance (100%), noise types, missing address handling.
-8. [ ] Build minimal end-to-end working baseline **EXP-001** (data loader -> country-partitioned blocking -> rapidfuzz string matcher -> validator pass).
-9. [ ] Run validation evaluation and log initial Macro $F_{0.5}$ score.
+8. [x] Build and run **EXP-001** baseline on 20,000 validation benchmark (achieved $F_{0.5} = 0.8938$).
+9. [x] Conduct systematic error analysis on EXP-001 (identified 4 distinct failure modes).
+10. [ ] Implement **EXP-002** to address URL/domain names, strip-mall false positives, and improve blocking recall ceiling from $91.60\% \to 97\%+$.
+11. [ ] Train LightGBM pairwise ranker/classifier on candidate pairs to learn non-linear feature interactions.

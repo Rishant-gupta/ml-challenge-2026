@@ -182,4 +182,43 @@ Raw Sources (S1, S2, S3)
 - **Current Status**: Workspace cleaned and consolidated. EDA notebook generated, verified, and saved with complete output. Next milestone: Baseline country-partitioned blocking and string similarity matcher (EXP-001).
 
 ---
+
+### [Entry 003] — 2026-09-25: EXP-001 Results & Systematic Error Analysis
+- **Author**: Antigravity & Engineering Team
+- **Why We Chose EXP-001**:
+  - We needed an end-to-end, deterministic, fast baseline to validate our two-stage architecture: **Stage 1 (Country-Partitioned Inverted Index Blocking)** and **Stage 2 (Heuristic String/Address Matcher + $F_{0.5}$ Threshold Tuning)**.
+  - Established a dedicated, reproducible 20,000 $S_1$ entity local validation benchmark (`dataset/val/`) with 468,785 candidate records preserving exact singleton and US/India distributions.
+- **Implementation Highlights**:
+  - `blocking.py`: Partitioned inverted index by `country`. Multi-key hashing on cleaned name tokens, 4-char prefixes, address number-token pairs, and postal codes with inverse document frequency (IDF) scoring. Top-$25$ candidate retrieval.
+  - `matcher.py`: Multi-field composite scoring using `RapidFuzz` Token Sort Ratio, Token Set Ratio, Jaro-Winkler, number overlap bonuses, and missing-address fallback handling.
+- **Empirical Results on 20,000 Validation Entities**:
+  - **Runtime**: Blocking took **21.30s**; Scoring 490,848 pairs took **24.71s** (Total: $< 47$ seconds).
+  - **Search Space Reduction**: Pruned 9.38 Billion pairwise comparisons down to 490,848 pairs (**99.995% reduction**, avg 24.54 candidates per $S_1$).
+  - **Blocking Recall Ceiling**: **91.60%** (captured 63,009 / 68,785 true links in top-25).
+  - **Threshold Calibration for Macro $F_{0.5}$**:
+    - $\tau = 68.0 \implies F_{0.5} = 0.6572$ (Precision: 64.22%, Recall: 88.68%, Singleton Acc: 31.83%)
+    - $\tau = 75.0 \implies F_{0.5} = 0.8352$ (Precision: 84.47%, Recall: 87.93%, Singleton Acc: 65.19%)
+    - $\tau = 80.0 \implies F_{0.5} = 0.8927$ (Precision: 91.72%, Recall: 86.81%, Singleton Acc: 80.85%)
+    - **$\tau = 82.0 \implies \mathbf{F_{0.5} = 0.8938}$ (Precision: 92.12%, Recall: 86.03%, Singleton Acc: 82.47%)**
+    - $\tau = 86.0 \implies F_{0.5} = 0.8821$ (Precision: 93.11%, Recall: 79.52%, Singleton Acc: 91.74%)
+- **Diagnostic Error Analysis — Where EXP-001 Lacks**:
+  1. *Commercial Building / Strip Mall False Positives*:
+     - Example: `Congregation Church` at `929 Ridge Road` falsely matched `Service Certified LLC` and `CERTIFIED NEUBERGER [LLC]` at `929 RIDGE RD` (Score 84.0).
+     - *Cause*: Our address rescue rule boosted pairs with identical addresses even when name similarity was near zero.
+     - *Takeaway*: Never match distinct businesses purely on address — physical buildings host multiple separate companies!
+  2. *Domain Name & Website URL Formatting*:
+     - Example: S1 `PUS Horizon Paper` missed GT `pushorizonpaper.com` and `pushorizonpapercom`.
+     - Example: S1 `D/U Brc LLC` missed GT `dubrc.com`.
+     - *Cause*: Tokenizing `pushorizonpaper.com` yields 1 monolithic token, missing token-based inverted index keys.
+     - *Takeaway*: Preprocessing must strip `.com`/`.net`/`.org` and test concatenated name string matching.
+  3. *Cross-Script / Hindi Devanagari Mismatches*:
+     - Example: S1 `Alpha Marketing Private Limited` missed GT `अल्फा मार्केटिंग प्राइवेट लिमिटेड` (Score 55.6).
+     - *Cause*: String edit distances between English and Devanagari characters are 0 without transliteration.
+     - *Takeaway*: Implement phonetic / transliteration normalization for Indian records.
+  4. *Blocking Recall Ceiling Bottleneck (91.60%)*:
+     - ~8.4% of true links are lost in blocking and can never be recovered by any downstream model.
+     - *Takeaway*: EXP-002 must expand blocking keys to include character n-grams and domain-stripped tokens to raise the recall ceiling to $\ge 97\%$.
+- **Current Status**: Solid baseline established ($F_{0.5} = 0.8938$). Clear blueprint for EXP-002 (Enhanced Blocking & URL/Script Normalization).
+
+---
 *(Additional entries will be logged continuously as experiments are executed and progress is made)*
