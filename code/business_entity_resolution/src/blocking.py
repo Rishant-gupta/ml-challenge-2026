@@ -1,89 +1,109 @@
 """
-Blocking / Candidate Generation module for Business Entity Resolution.
-Implements Country-Partitioned Multi-Key Inverted Index with IDF weighting.
+Blocking / Candidate Generation module for Business Entity Resolution (EXP-002).
+Implements Country-Partitioned Multi-Granularity Tokenizer & Inverted Index:
+- Spaceless concatenated name keys ('ns:')
+- DBA-aware word token keys ('nt:')
+- Sorted 2-word shingle keys ('sh:') to rescue common industry words
+- 5-char subword n-gram keys ('ng:') for compound words and typos
+- Address number+word ('an:'), address word-pair ('aw:'), and postal code ('pc:') keys
 """
 
 import math
-import re
 from collections import defaultdict
-from typing import Dict, List, Set, Tuple
+from itertools import combinations
+from typing import Dict, List, Set
 
 from data_loader import EntityRecord
-from preprocessor import clean_address, clean_business_name
+from preprocessor import clean_address, extract_name_variants
 
-STOP_TOKENS = {
-    "the", "and", "of", "in", "at", "for", "to", "on", "by", "with",
+PURE_STOP_WORDS = {
+    "the", "and", "of", "in", "at", "for", "to", "on", "by", "with", "de", "du", "des", "la", "le", "les",
     "inc", "llc", "ltd", "pvt", "private", "limited", "corp", "corporation",
-    "co", "company", "llp", "pllc", "plc", "sa", "sas", "sarl", "gmbh",
-    "group", "services", "solutions", "enterprises", "enterprise", "holdings",
-    "international", "global", "india", "usa", "us", "france",
+    "co", "company", "llp", "pllc", "plc", "sa", "sas", "sasu", "sarl", "eurl", "sci", "gmbh",
+    "dba", "aka",
+}
+
+GENERIC_CORP_WORDS = PURE_STOP_WORDS | {
+    "group", "services", "service", "solutions", "enterprises", "enterprise", "holdings",
+    "international", "global", "india", "usa", "us", "france", "center", "centre",
 }
 
 ADDR_STOP_TOKENS = {
-    "road", "street", "avenue", "boulevard", "lane", "drive", "court", "ct",
+    "road", "street", "avenue", "boulevard", "lane", "drive", "court", "place", "allee", "rue",
     "floor", "ground", "first", "second", "third", "unit", "suite", "apartment",
     "shop", "no", "plot", "flat", "sector", "phase", "block", "near", "opposite",
     "behind", "beside", "main", "cross", "stage", "layout", "colony", "nagar",
     "vihar", "marg", "puram", "khand", "peth", "bazar", "market", "plaza",
     "building", "complex", "tower", "towers", "center", "centre", "park",
     "north", "south", "east", "west", "new", "old", "city", "state", "district",
-    "po", "box", "post", "office", "pin", "zip",
+    "po", "box", "post", "office", "pin", "zip", "de", "du", "des", "la", "le", "les", "bis",
+    # Common state names (too broad for address word pairs)
+    "uttar", "pradesh", "maharashtra", "delhi", "karnataka", "tamil", "nadu", "gujarat",
+    "madhya", "haryana", "rajasthan", "telangana", "andhra", "kerala", "punjab", "bengal",
+    "california", "texas", "florida", "illinois", "pennsylvania", "ohio", "georgia",
+    "michigan", "carolina", "jersey", "virginia", "washington", "arizona", "tennessee",
+    "indiana", "missouri", "maryland", "wisconsin", "colorado", "minnesota", "alabama",
+    "kentucky", "oregon", "oklahoma", "connecticut", "utah",
 }
-
-DIGIT_SEQ_RE = re.compile(r"\b\d+\b")
-
-
-def normalize_number_token(num_str: str) -> str:
-    """Strips leading zeros from numbers (e.g., '004303' -> '4303')."""
-    stripped = num_str.lstrip("0")
-    return stripped if stripped else "0"
 
 
 def extract_blocking_keys(record: EntityRecord) -> List[str]:
     """
-    Extracts blocking keys for a record:
-    1. Name word tokens: 'nt:<token>'
-    2. Name 4-char prefixes (for typo tolerance): 'np:<prefix4>'
-    3. Address number + rare address token combinations: 'an:<num>_<token>'
-    4. Rare address tokens: 'at:<token>'
+    Extracts multi-granularity blocking keys for a record.
     """
     keys: Set[str] = set()
-    _, stripped_name = clean_business_name(record.business_name)
-    name_tokens = [
-        t for t in stripped_name.split()
-        if len(t) >= 2 and t not in STOP_TOKENS
-    ]
+    variants = extract_name_variants(record.business_name)
 
-    for tok in name_tokens:
-        keys.add(f"nt:{tok}")
-        if len(tok) >= 4 and not tok.isdigit():
-            keys.add(f"np:{tok[:4]}")
+    for stripped_name in variants:
+        raw_tokens = [t for t in stripped_name.split() if t not in PURE_STOP_WORDS]
+        sig_tokens = [t for t in raw_tokens if len(t) >= 2 and t not in GENERIC_CORP_WORDS]
 
-    # Bigram of first two significant name tokens
-    if len(name_tokens) >= 2:
-        keys.add(f"nb:{name_tokens[0]}_{name_tokens[1]}")
+        # 1. Spaceless concatenated name (catches URLs & joined words like 'pushorizonpaper')
+        spaceless = "".join(sig_tokens)
+        if len(spaceless) >= 4:
+            keys.add(f"ns:{spaceless}")
+            # 2. Subword 5-char n-grams on spaceless string (catches compound words & typos)
+            if len(spaceless) >= 5:
+                step = 1 if len(spaceless) <= 12 else 2
+                for i in range(0, min(len(spaceless) - 4, 14), step):
+                    keys.add(f"ng:{spaceless[i:i+5]}")
 
-    # Address keys
+        # 3. Individual significant word tokens & 4-char prefixes
+        for tok in sig_tokens:
+            keys.add(f"nt:{tok}")
+            if len(tok) >= 4 and not tok.isdigit():
+                keys.add(f"np:{tok[:4]}")
+
+        # 4. Sorted 2-word Shingles (uses raw_tokens so pairs like 'cardiology_center' or 'clinic_highland' are indexed!)
+        shingle_tokens = sorted(set(t for t in raw_tokens if len(t) >= 3))[:6]
+        if len(shingle_tokens) >= 2:
+            for w1, w2 in combinations(shingle_tokens, 2):
+                keys.add(f"sh:{w1}_{w2}")
+
+    # 5. Address Keys
     if record.business_address:
-        cleaned_addr = clean_address(record.business_address)
+        cleaned_addr = clean_address(record.business_address, record.country)
         addr_tokens = cleaned_addr.split()
         nums = []
         words = []
         for tok in addr_tokens:
             if tok.isdigit():
-                norm_num = normalize_number_token(tok)
-                if len(norm_num) >= 2:
-                    nums.append(norm_num)
+                if len(tok) >= 2:
+                    nums.append(tok)
             elif len(tok) >= 3 and tok not in ADDR_STOP_TOKENS:
                 words.append(tok)
 
-        # Combine first couple of numbers with distinctive address words
-        # (Captures exact location matches even when business name is a DBA/trade name)
         for num in nums[:3]:
             for w in words[:4]:
                 keys.add(f"an:{num}_{w}")
-            if len(num) >= 5:  # Postal code / PIN code
+            if len(num) >= 5:
                 keys.add(f"pc:{num}")
+
+        # Address rare word pairs (when street number is missing in one source)
+        distinct_addr_words = sorted(set(words[:5]))
+        if len(distinct_addr_words) >= 2:
+            for w1, w2 in combinations(distinct_addr_words, 2):
+                keys.add(f"aw:{w1}_{w2}")
 
     return list(keys)
 
@@ -92,18 +112,19 @@ class CountryPartitionedBlocker:
     """
     Builds a country-partitioned inverted index over Source 2 and Source 3 records,
     and retrieves top-K candidate IDs per Source 1 entity using IDF scoring.
+     Also exposes token document frequencies for downstream matcher precision guards.
     """
 
     def __init__(
         self,
-        max_postings_per_key: int = 1500,
-        top_k: int = 25,
+        max_postings_per_key: int = 2500,
+        top_k: int = 35,
     ):
         self.max_postings_per_key = max_postings_per_key
         self.top_k = top_k
-        # country -> {key -> list of entity_ids}
         self.index: Dict[str, Dict[str, List[str]]] = defaultdict(lambda: defaultdict(list))
         self.key_weights: Dict[str, Dict[str, float]] = defaultdict(dict)
+        self.token_df: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
 
     def fit(
         self,
@@ -116,6 +137,8 @@ class CountryPartitionedBlocker:
                 country = rec.country
                 for key in extract_blocking_keys(rec):
                     self.index[country][key].append(eid)
+                    if key.startswith("nt:"):
+                        self.token_df[country][key[3:]] += 1
 
         # Prune overly common keys and compute IDF weights
         for country, c_idx in self.index.items():
@@ -125,13 +148,17 @@ class CountryPartitionedBlocker:
                 if df > self.max_postings_per_key:
                     keys_to_delete.append(key)
                 else:
-                    # Prefix keys have slightly lower base weight than exact token or address-number keys
-                    if key.startswith("np:"):
-                        base_w = 0.6
-                    elif key.startswith("nb:") or key.startswith("an:"):
-                        base_w = 1.8
+                    prefix = key[:3]
+                    if prefix == "ns:":
+                        base_w = 3.0  # Exact spaceless name match is ultra-informative
+                    elif prefix in ("sh:", "an:"):
+                        base_w = 2.2  # Word-pair shingle & address number+word anchor
+                    elif prefix in ("nt:", "aw:", "pc:"):
+                        base_w = 1.4  # Single name word, address word-pair, postal code
+                    elif prefix == "ng:":
+                        base_w = 0.55 # Subword 5-gram
                     else:
-                        base_w = 1.2
+                        base_w = 0.65 # 4-char prefix
                     self.key_weights[country][key] = base_w / math.log(2.0 + df)
 
             for k in keys_to_delete:

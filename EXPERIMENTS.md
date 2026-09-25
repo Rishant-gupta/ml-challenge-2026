@@ -93,8 +93,9 @@ $$F_{0.5}(i) = \begin{cases}
 | Run ID | Date | Description / Hypothesis | Blocking Recall | Candidate Count / S1 | Val Precision | Val Recall | Val Macro $F_{0.5}$ | Status | Decision |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **EXP-000** | 2026-09-25 | Environment setup, evaluation suite, and full exploratory data analysis (EDA) notebook | N/A | N/A | N/A | N/A | N/A | Completed | Baseline Ready |
-| **EXP-001** | 2026-09-25 | Country-Partitioned Multi-Key Inverted Index + Heuristic RapidFuzz Scorer ($\tau = 82.0$) | 91.60% | 24.54 | 0.9212 | 0.8603 | **0.8938** | Completed | Strong Baseline Established |
-| **EXP-002** | *Planned* | Domain/URL Normalization + Devanagari Transliteration + Strip-Mall FP Suppression | TBD | TBD | TBD | TBD | TBD | Ready | Pending Run |
+| **EXP-001** | 2026-09-25 | Country-Partitioned Multi-Key Inverted Index + Heuristic RapidFuzz Scorer ($\tau = 82.0$) | 91.60% | 24.54 | 0.9212 | 0.8603 | **0.8938** | Completed | Baseline Established |
+| **EXP-002** | 2026-09-25 | Multi-Granularity Tokenization (Spaceless + Shingles + 5-grams + Devanagari + DBA + France) + Strip-Mall & IDF Guards ($\tau = 83.0$) | **97.94%** | 34.82 | **0.9501** | **0.9186** | **0.9340** | Completed | **Adopted (+4.02 F0.5, +6.34% Blocking Recall)** |
+| **EXP-003** | *Planned* | Rich Pairwise Feature Engineering (20+ features) + LightGBM GBDT Classifier + GroupKFold Out-of-Fold Thresholding | 97.94%+ | ~35 | TBD | TBD | TBD | Ready | Pending Run |
 
 ---
 
@@ -107,7 +108,7 @@ $$F_{0.5}(i) = \begin{cases}
 5. [x] Set up Python virtual environment (`venv/`) with JupyterLab and ML libraries.
 6. [x] Build interactive EDA notebook ([`notebooks/01_exploratory_data_analysis.ipynb`](notebooks/01_exploratory_data_analysis.ipynb)) and launcher script ([`start_jupyter.sh`](start_jupyter.sh)).
 7. [x] Perform Exploratory Data Analysis (EDA) on training data: singletons (~5.6%), country invariance (100%), noise types, missing address handling.
-8. [x] Build and run **EXP-001** baseline on 20,000 validation benchmark (achieved $F_{0.5} = 0.8938$).
-9. [x] Conduct systematic error analysis on EXP-001 (identified 4 distinct failure modes).
-10. [ ] Implement **EXP-002** to address URL/domain names, strip-mall false positives, and improve blocking recall ceiling from $91.60\% \to 97\%+$.
-11. [ ] Train LightGBM pairwise ranker/classifier on candidate pairs to learn non-linear feature interactions.
+8. [x] Build and run **EXP-001** baseline on 20,000 validation benchmark ($F_{0.5} = 0.8938$, Blocking Recall $= 91.60\%$).
+9. [x] Implement and run **EXP-002** with multi-granularity tokenization, Devanagari transliteration, URL/DBA handling, and precision guards ($F_{0.5} = 0.9340$, Blocking Recall $= 97.94\%$).
+10. [ ] Build **EXP-003**: Engineer 20+ pairwise features (primary street number exact match, token IDF overlap, character/word distances, rank features) and train a **LightGBM Classifier** to push Macro $F_{0.5}$ above **0.95+**.
+11. [ ] Add GPU-accelerated multilingual subword embeddings (RTX 2050) for hard cross-script and semantic candidate pairs.

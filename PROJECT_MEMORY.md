@@ -221,4 +221,38 @@ Raw Sources (S1, S2, S3)
 - **Current Status**: Solid baseline established ($F_{0.5} = 0.8938$). Clear blueprint for EXP-002 (Enhanced Blocking & URL/Script Normalization).
 
 ---
+
+### [Entry 004] — 2026-09-25: EXP-002 Multi-Granularity Tokenization & Precision Guards Breakthrough
+- **Author**: Antigravity & Engineering Team
+- **Why We Chose EXP-002**:
+  - Directly targeted the 4 failure modes diagnosed in EXP-001 (blocking ceiling of 91.60%, URL/domain concatenation, Hindi Devanagari script mismatch, and strip-mall/missing-address false positives), plus 5 data edge cases including unseen `France` legal/address patterns.
+- **What We Implemented**:
+  1. `preprocessor.py`:
+     - Added lexical + phonetic Hindi Devanagari $\to$ Latin transliterator.
+     - Added domain/URL suffix stripper (`.com`, `.net`, `.org`, `www.`) and dotted/slashed initial collapser (`D/U` $\to$ `du`, `S.A.S.` $\to$ `sas`).
+     - Added `d/b/a` and `a/k/a` multi-variant name splitter.
+     - Added US, India, and **France** legal suffixes (`SARL`, `SASU`, `EURL`, `SCI`, `Pvt Ltd`, `PLLC`, `et Fils`, `et Frères`) and country-aware state/street expansions (`r.` $\to$ `rue`, `UP` $\to$ `uttar pradesh`, `TN` $\to$ `tennessee`, etc.).
+     - Added `@lru_cache` memoization, cutting pairwise scoring time by $3.5\times$ (from 24.7s down to **7.1s**).
+  2. `blocking.py`:
+     - Multi-granularity tokenizer generating: Spaceless concatenated name keys (`ns:`), DBA word tokens (`nt:`), **sorted 2-word shingles (`sh:`)**, **5-character subword n-grams (`ng:`)**, address number-word anchors (`an:`), and address word-pair shingles (`aw:`).
+  3. `matcher.py`:
+     - Multi-variant & spaceless string similarity, Strip-Mall False Positive Guard, Coined-Alias Exact-Address Rescue, and IDF Rarity-Guarded Missing-Address Fallback.
+- **Empirical Results on 20,000 Validation Entities (EXP-001 vs EXP-002)**:
+  - **Blocking Recall Ceiling**: Jumped from **$91.60\% \longrightarrow \mathbf{97.94\%}$ (+6.34%!)** ($67,371 / 68,785$ true links captured in top-$35$).
+  - **Macro $F_{0.5}$ Score**: Jumped from **$0.8938 \longrightarrow \mathbf{0.9340}$ (+4.02 points!)** at $\tau = 83.0$.
+  - **Macro Precision**: Improved from **$92.12\% \longrightarrow \mathbf{95.01\%}$ (+2.89%)**.
+  - **Macro Recall**: Improved from **$86.03\% \longrightarrow \mathbf{91.86\%}$ (+5.83%)**.
+  - **Singleton Accuracy**: Improved from **$82.47\% \longrightarrow \mathbf{86.47\%}$ (+4.00%)**.
+  - **Non-Singleton $F_{0.5}$**: Improved from **$0.8981 \longrightarrow \mathbf{0.9383}$**.
+- **Residual Error Analysis — Where EXP-002 Still Lacks (And Why We Need GBDT in EXP-003)**:
+  1. *Same-Name Franchise / Different Street Number False Positives*:
+     - Example: `Vision Care` at `2011 Randall Road, Indianapolis` falsely matched `Vision Care` at `2096 Graham Ave, Indianapolis` (Score 88.0).
+     - Example: `Primary Care Physicians LLC` at `7258 Oxford Court` falsely matched `7265 Oxford Court` (different building number on the same street!).
+     - Example: `United Consulting Pvt Ltd` in `Gurgaon` matched `United Consulting Pvt Ltd` in `Chennai` because both addresses happened to contain the number `1` (`1st Floor` vs `Old No. 1/2`)!
+     - *Lesson*: Hand-crafted linear weights and hard `if/else` rules cannot cleanly separate "same street name, different house number (`7258` vs `7265`)" or "incidental number `1` match in different cities."
+  2. *Missing-Address Exact Name Calibration*:
+     - Candidates with empty addresses (`Addr=''`) and exact multi-word names (`Better Digital Solutions LLC`, `Arrowline Aero (India) Pvt Ltd`) scored `78–82`, sitting just below the `83.0` threshold.
+- **Current Status**: EXP-002 achieved **97.94% blocking recall** and **0.9340 Macro $F_{0.5}$**. Next milestone: **EXP-003 (Pairwise Feature Engineering + LightGBM Classifier)** to replace hand-crafted scoring rules with learned tree splits.
+
+---
 *(Additional entries will be logged continuously as experiments are executed and progress is made)*
