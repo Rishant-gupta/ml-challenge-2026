@@ -92,7 +92,8 @@ $$F_{0.5}(i) = \begin{cases}
 
 | Run ID | Date | Description / Hypothesis | Blocking Recall | Candidate Count / S1 | Val Precision | Val Recall | Val Macro $F_{0.5}$ | Status | Decision |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **EXP-000** | 2026-09-25 | Environment setup, evaluation scripts, and submission validator | N/A | N/A | N/A | N/A | N/A | Completed | Baseline Ready |
+| **EXP-000** | 2026-09-25 | Environment setup, evaluation suite, and full exploratory data analysis (EDA) notebook | N/A | N/A | N/A | N/A | N/A | Completed | Baseline Ready |
+| **EXP-001** | *Planned* | Country-Partitioned Inverted Index (Token + 3-gram) + Heuristic RapidFuzz Scorer | TBD | TBD | TBD | TBD | TBD | Ready | Pending Run |
 
 ---
 
@@ -102,8 +103,8 @@ $$F_{0.5}(i) = \begin{cases}
 2. [x] Scaffold project directory structure (`dataset/`, `output/`, `utils/`, `code/business_entity_resolution/src/`).
 3. [x] Implement submission format validator (`utils/validate_submission.py`).
 4. [x] Implement local evaluation metric calculator (`utils/metrics.py`).
-5. [ ] Obtain or ingest dataset files (`train_source1.tsv`, `train_source2.tsv`, `train_source3.tsv`, `train_ground_truth.tsv`, and test files).
-6. [ ] Perform Exploratory Data Analysis (EDA) on training data: distribution of singletons, noise types in US and India, address formats.
-7. [ ] Build minimal end-to-end working baseline (data loader -> blocking -> feature extraction -> matcher -> validator).
-8. [ ] Execute EXP-B1/B2 to optimize blocking recall ceiling.
-9. [ ] Train LightGBM ranker/classifier and optimize threshold specifically for Macro $F_{0.5}$.
+5. [x] Set up Python virtual environment (`venv/`) with JupyterLab and ML libraries.
+6. [x] Build interactive EDA notebook ([`notebooks/01_exploratory_data_analysis.ipynb`](notebooks/01_exploratory_data_analysis.ipynb)) and launcher script ([`start_jupyter.sh`](start_jupyter.sh)).
+7. [x] Perform Exploratory Data Analysis (EDA) on training data: singletons (~5.6%), country invariance (100%), noise types, missing address handling.
+8. [ ] Build minimal end-to-end working baseline **EXP-001** (data loader -> country-partitioned blocking -> rapidfuzz string matcher -> validator pass).
+9. [ ] Run validation evaluation and log initial Macro $F_{0.5}$ score.

@@ -146,4 +146,36 @@ Raw Sources (S1, S2, S3)
 - **Current Status**: Project environment fully scaffolded, dataset linked and inspected, documentation and memory systems active. Ready for dataset exploration and baseline development.
 
 ---
+
+### [Entry 002] — 2026-09-25: In-Depth Exploratory Data Analysis & Jupyter Environment
+- **Author**: Antigravity & Engineering Team
+- **Milestones Completed**:
+  1. Built and activated isolated Python virtual environment (`venv/`) equipped with `jupyterlab`, `pandas 2.2+`, `scikit-learn`, `lightgbm`, `rapidfuzz`, `seaborn`, `matplotlib`, and `tqdm`.
+  2. Created configured launcher [`start_jupyter.sh`](start_jupyter.sh) with sandbox-safe workspace paths for Jupyter configuration, runtime, and data directories.
+  3. Created and executed [`notebooks/01_exploratory_data_analysis.ipynb`](notebooks/01_exploratory_data_analysis.ipynb), pre-rendering all statistics, histograms, KDE plots, and noise inspections.
+- **Key EDA Discoveries & Empirical Insights**:
+  1. **Strict Country Partitioning**:
+     - Evaluated ground truth pairs: **100% of matches stay strictly within the same country**.
+     - An Indian entity in $S_1$ will never match a US or French entity in $S_2/S_3$.
+     - *Implication*: We can partition the blocking and candidate search into independent country buckets (`US`, `India`, `France`), drastically cutting pairwise search space by $60\% - 80\%$ and keeping memory footprint manageable on our 15GB RAM machine.
+  2. **Singleton Profile & Match Cardinality**:
+     - **$\sim 5.6\%$ of Source 1 entities are pure singletons (0 matches)**.
+     - Non-singletons match an average of **3.46 records** (peaking at 3-4 matches, with max 11).
+     - Breakdown: $\sim 48\%$ of matches originate from Source 2 and $\sim 52\%$ from Source 3.
+  3. **Data Completeness**:
+     - Reference Source 1 is pristine ($0\%$ missing names, addresses, or countries).
+     - Sources 2 and 3 contain **$\sim 3.3\%$ missing addresses** and rare missing names. Any matching feature must handle null addresses gracefully (falling back to strong name matching).
+  4. **Unseen Country Breakdown (France)**:
+     - Training set: US ($60\%$), India ($40\%$).
+     - Test set: India ($47\%$), US ($38\%$), France ($15\%$).
+     - France represents nearly 260,000 Source 1 test entities! Features must be completely language/country agnostic (relative token sort ratios, character n-grams, Levenshtein distances).
+  5. **Observed Noise Taxonomy**:
+     - *Legal Suffix Inconsistencies*: `BS Projects Ltd Ltd` vs `BS-Projects` vs `BS Projects`.
+     - *DBA (Doing Business As)*: `Beloavi d/b/a Novent Owl PLLC` matches `Novent Owl PLLC`.
+     - *Address Transpositions*: City/State preceding street name (`Des Plaines, IL, 9308 Home Court` vs `9308 Home Ct, Des Plaines, IL`).
+     - *Numeric Variations*: Leading zeros (`004303 ELKINS AVE` vs `4303 Elkins Avenue`).
+     - *Non-Latin Script*: Hindi Devanagari names in India records (`राम मार्केटिंग प्राइवेट लिमिटेड`).
+- **Current Status**: EDA notebook generated, verified, and saved with complete output. Next milestone: Baseline country-partitioned blocking and string similarity matcher (EXP-001).
+
+---
 *(Additional entries will be logged continuously as experiments are executed and progress is made)*
