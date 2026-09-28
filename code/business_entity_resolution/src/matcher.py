@@ -16,7 +16,36 @@ from blocking import GENERIC_CORP_WORDS, PURE_STOP_WORDS
 from data_loader import EntityRecord
 from preprocessor import clean_address, clean_business_name, extract_name_variants
 
-DIGIT_RE = re.compile(r"\b\d+\b")
+DIGIT_RE = re.compile(r"(?<!\d)\d+(?!\d)")
+
+_NON_COINED_SINGLE_WORDS = GENERIC_CORP_WORDS | PURE_STOP_WORDS | {
+    "vision", "alpha", "beta", "delta", "omega", "prime", "premier", "supreme", "apex", "royal",
+    "imperial", "national", "united", "modern", "sunrise", "sunset", "pioneer", "heritage",
+    "alliance", "venture", "ventures", "capital", "finance", "financial", "medical", "dental",
+    "clinical", "clinic", "hospital", "pharmacy", "pharma", "motors", "textiles", "chemicals",
+    "builders", "developers", "logistics", "exports", "imports", "traders", "trading", "properties",
+    "consultants", "consultancy", "associates", "technologies", "technology", "systems", "networks",
+    "digital", "media", "studio", "studios", "designs", "design", "fashion", "boutique", "atelier",
+    "maison", "bakery", "cafe", "restaurant", "hotel", "resorts", "travels", "tours", "academy",
+    "institute", "foundation", "trust", "society", "agency", "agencies", "industries", "industry",
+    "manufacturing", "engineering", "constructions", "construction", "projects", "project",
+    "infotech", "infosys", "telecom", "energy", "power", "solar", "green", "foods", "agro",
+    "farms", "dairy", "plastics", "polymers", "metals", "steels", "steel", "cements", "cement",
+    "ceramics", "garments", "apparels", "jewellers", "jewelry", "diamonds", "gems", "optics",
+    "optical", "diagnostics", "pathology", "imaging", "wellness", "fitness", "sports", "security",
+    "realty", "estates", "estate", "homes", "housing", "infra", "infrastructure", "transport",
+    "carriers", "movers", "packers", "printers", "publishers", "publications", "reliance",
+    "shakti", "krishna", "bajaj", "arihant", "anand", "urban", "metro", "star", "unique",
+    "eastern", "western", "northern", "southern", "central", "universal", "standard", "classic",
+    "dynamic",
+}
+
+_CONCAT_REAL_SUFFIXES = (
+    "academy", "school", "college", "hospital", "clinic", "center", "centre", "pharma",
+    "motors", "traders", "exports", "imports", "agency", "studio", "realty", "global",
+    "india", "france", "group", "works", "mart", "store", "stores", "shop", "plaza",
+    "tower", "towers", "park", "care", "tech", "labs", "soft", "foods", "hotel",
+)
 
 
 def extract_numbers(text: str) -> Set[str]:
@@ -29,20 +58,45 @@ def extract_numbers(text: str) -> Set[str]:
     return nums
 
 
+_SYNTHETIC_COINED_STEM_RE = re.compile(
+    r"^(?:vantage|umbra|delta|alpha|omega|gamma|sigma|theta|kappa|"
+    r"arc|aria|avi|belo|brix|calo|cira|dova|drex|ecto|evo|faye|flux|gild|"
+    r"halo|haio|io|kelo|lum|lyra|mira|nex|novi|nyla|onyx|orbi|pyra|quo|"
+    r"tavo|veo|vera|xylo|xyio|yuma|yum|ajax|zeph|zeta|syn|iri|lri|jax|"
+    r"riza|vio|kor|wex|sol|ova){2,4}x?$"
+)
+_DBA_RAW_RE = re.compile(r"\b(?:d\s*/\s*b\s*/\s*a|d\.b\.a\.|dba|a\s*/\s*k\s*/\s*a|aka|t\s*/\s*a|f\s*/\s*k\s*/\s*a|f\.k\.a\.|fka|formerly)\b", re.IGNORECASE)
+
+
 def is_single_coined_alias(raw_name: str, stripped_name: str) -> bool:
     """
-    Checks if a business name is a single-word coined trade alias (e.g. 'DREXTAVO', 'Gildcalo')
-    without standard corporate suffixes or generic business words.
+    Checks if a business name is a synthetic coined trade alias (e.g. 'DREXTAVO', 'Gildcalo',
+    'Smt Dovavantageumbra', 'Jaxbelo Labs', 'Verapyrahalo One') without DBA/formerly real-name
+    qualifiers or unrelated .com/#handle domain concatenations.
     """
+    if not raw_name or not stripped_name:
+        return False
+    if _DBA_RAW_RE.search(raw_name):
+        return False
     tokens = stripped_name.split()
+    if any(_SYNTHETIC_COINED_STEM_RE.match(t) for t in tokens) and len(tokens) <= 2:
+        return True
     if len(tokens) != 1:
         return False
     word = tokens[0]
-    if len(word) < 5 or word in GENERIC_CORP_WORDS or word in PURE_STOP_WORDS:
+    if "." in raw_name or "#" in raw_name:
         return False
-    # Ensure raw name was also just 1 token (no 'LLC', 'Inc', etc.)
+    if (
+        len(word) < 6
+        or any(ch.isdigit() for ch in word)
+        or word in _NON_COINED_SINGLE_WORDS
+        or (len(word) >= 7 and word.endswith(_CONCAT_REAL_SUFFIXES))
+    ):
+        return False
+    # Ensure raw name had no legal suffix tokens (honorific prefixes like 'Smt', 'Dr' are allowed)
     full_clean, _ = clean_business_name(raw_name)
-    if len(full_clean.split()) != 1:
+    full_toks = [t for t in full_clean.split() if t not in {"smt", "shri", "sri", "ms", "mr", "mrs", "dr", "messrs"}]
+    if len(full_toks) != 1:
         return False
     return True
 
